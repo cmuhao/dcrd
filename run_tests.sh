@@ -19,35 +19,64 @@ set -ex
 #Default GOVERSION
 GOVERSION=${1:-1.9}
 REPO=dcrd
+DOCKER_IMAGE_TAG=decred-golang-builder-$GOVERSION
 
-TESTCMD="test -z \"\$(gometalinter --disable-all \
-  --enable=gofmt \
-  --enable=vet \
-  --enable=unconvert \
-  --vendor \
-  --deadline=10m . 2>&1 | tee /dev/stderr)\"&& \
-  env GORACE='halt_on_error=1' go test -short -race \
-  -tags rpctest \
-  \$(glide novendor)"
+testrepo () {
+  TESTDIRS=$(go list ./... | grep -v '/vendor/')
+  TMPFILE=$(mktemp)
+
+  # Check lockfile
+  cp Gopkg.lock $TMPFILE && dep ensure && diff Gopkg.lock $TMPFILE >/dev/null
+  if [ $? != 0 ]; then
+    echo 'lockfile must be updated with dep ensure'
+    exit 1
+  fi
+
+  # Check linters
+  gometalinter --vendor --disable-all --deadline=10m \
+    --enable=gofmt \
+    --enable=vet \
+    --enable=unconvert ./... | tee /dev/stderr
+  if [ $? != 0 ]; then
+    echo 'gometalinter has some complaints'
+    exit 1
+  fi
+
+  # Test application install
+  go install . ./cmd/...
+  if [ $? != 0 ]; then
+    echo 'go install failed'
+    exit 1
+  fi
+
+  # Check tests
+  env GORACE='halt_on_error=1' go test -short -race -tags rpctest $TESTDIRS
+  if [ $? != 0 ]; then
+    echo 'go tests failed'
+    exit 1
+  fi
+
+  echo "------------------------------------------"
+  echo "Tests completed successfully!"
+}
 
 if [ $GOVERSION == "local" ]; then
-    go get -v github.com/alecthomas/gometalinter; gometalinter --install
-    eval $TESTCMD
+    testrepo
     exit
 fi
 
-DOCKER_IMAGE_TAG=decred-golang-builder-$GOVERSION
-
 docker pull decred/$DOCKER_IMAGE_TAG
+if [ $? != 0 ]; then
+	echo 'docker pull failed'
+	exit 1
+fi
 
 docker run --rm -it -v $(pwd):/src decred/$DOCKER_IMAGE_TAG /bin/bash -c "\
   rsync -ra --filter=':- .gitignore'  \
   /src/ /go/src/github.com/decred/$REPO/ && \
   cd github.com/decred/$REPO/ && \
-  glide install && \
-  go install \$(glide novendor) && \
-  $TESTCMD
-"
-
-echo "------------------------------------------"
-echo "Tests complete."
+  bash run_tests.sh local"
+if [ $? != 0 ]; then
+	echo 'docker run failed'
+	exit 1
+fi

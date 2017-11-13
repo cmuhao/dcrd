@@ -8,8 +8,8 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/dcrutil"
 )
 
 // SequenceLock represents the minimum timestamp and minimum block height after
@@ -134,7 +134,7 @@ func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *Utx
 			// input height and required relative number of blocks.
 			// Also, subtract one from the relative lock in order to
 			// maintain the original lock time semantics.
-			minHeight := inputHeight + int64(relativeLock) - 1
+			minHeight := inputHeight + relativeLock - 1
 			if minHeight > sequenceLock.MinHeight {
 				sequenceLock.MinHeight = minHeight
 			}

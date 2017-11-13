@@ -18,9 +18,9 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/dcrutil"
 )
 
 // TxType indicates the type of tx (regular or stake type).
@@ -1192,4 +1192,14 @@ func SetTxTree(tx *dcrutil.Tx) {
 	}
 
 	tx.SetTree(indicatedTree)
+}
+
+// IsStakeSubmissionTxOut indicates whether the txOut identified by the
+// given index is a stake submission output. Stake Submission outputs are
+// the odd-numbered outputs of an SStx transaction.
+//
+// This function is only safe to be called on a transaction that
+// has passed IsSStx.
+func IsStakeSubmissionTxOut(index int) bool {
+	return (index % 2) != 0
 }
